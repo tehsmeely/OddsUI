@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>What Odds</title>
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://cdn.socket.io/4.7.0/socket.io.js"></script>
+    <!-- 
+    <script src="//cdnjs.cloudflare.com/ajax/libs/socket.io/2.2.0/socket.io.js"
+        integrity="sha256-yr4fRk/GU1ehYJPAs8P4JlTgu0Hdsp4ZKrx8bDEDC3I=" crossorigin="anonymous"></script>
+    -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.4.2/gsap.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="style.css">
+
+
+    <!-- Fonts ...
+        Betfair: Arial
+        Ladbrookes: Roboto Condensed (And some Helvetica Neue for names)
+        SkyBet: SkyMedium 
+        PaddyPower: Roboto
+        William Hill: Verdana
+        Coral: Lato
+        BetUK: Barlow
+    -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet">
+
+</head>
+
+<body class="wavey_bg">
+    <div id="app">
+        <div id="blocks"></div>
+    </div>
+    <div id="template" style="display: none;">
+        <div class="odds-block">
+            <div class="odds-block-inner">
+                <div class="name">NAME</div>
+                <div class="odds">ODDS</div>
+            </div>
+        </div>
+    </div>
+    <script type="text/javascript" charset="utf-8">
+        $(function () {
+            var socket = io();
+            var model = {};
+
+
+            function get_template() {
+                return $("#template").first().children().first();
+            }
+
+            function odds_blocks_clicked(block) {
+                console.log(block);
+                $(block.delegateTarget).find(".name").each(function () {
+                    console.log($(this).text());
+                });
+            }
+
+            function create_block(template, name, odds) {
+                let block = template.clone();
+                block.find(".name").each(function () {
+                    $(this).text(name);
+                });
+                block.find(".odds").each(function () {
+                    $(this).text(odds);
+                });
+
+                block.click(odds_blocks_clicked);
+                return block;
+            }
+
+            function text_changed_animate(obj) {
+                let from_config = {
+                    backgroundColor: "rgba(255,30,30,1)",
+                    duration: 1,
+                }
+                let to_config = {
+                    backgroundColor: "rgba(0,0,0,0)",
+                    duration: 1,
+                }
+                gsap.fromTo(obj, from_config, to_config)
+            }
+
+            socket.on('connect', function () {
+                socket.emit('snapshot_request');
+            });
+
+            socket.on('message', function (msg) {
+                console.log(msg);
+                $("#app").text(msg);
+            });
+
+            socket.on("model_snapshot", (snapshot) => {
+                let blocks = $("#blocks");
+                blocks.empty();
+                let template = get_template();
+                for (let name in snapshot) {
+                    let block = create_block(template, name, snapshot[name])
+                    blocks.append(block);
+                    model[name] = block;
+                }
+            });
+
+            socket.on("model_diff", (diff) => {
+                console.log(diff);
+                for (name in diff["lost"]) {
+                    model[name].remove();
+                    delete model[name];
+                }
+                for (name in diff["changed"]) {
+                    if (name in model) {
+                        model[name].find(".odds").each(function () {
+                            $(this).text(diff["changed"][name])
+                            text_changed_animate($(this));
+                        })
+                    } else {
+                        // Stuff it back into new to add 
+                        diff["new"][name] = diff["changed"][name];
+                    }
+                }
+                let template = get_template();
+                let blocks = $("#blocks");
+                for (name in diff["new"]) {
+                    let block = create_block(template, name, diff["new"][name])
+                    blocks.append(block);
+                    model[name] = block
+                }
+            });
+        })
+    </script>
+</body>
+
+</html>

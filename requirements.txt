@@ -1,0 +1,4 @@
+Flask==2.3.2
+Flask_HTTPAuth==4.8.0
+Flask_SocketIO==5.3.4
+Requests==2.31.0
